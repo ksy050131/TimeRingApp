@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Time Ring App: 하루의 흐름을 한눈에, 원형 타임테이블
 
-## Getting Started
+> **"시간은 흐르는데, 왜 스케줄러는 리스트여야 할까?"** 라는 의문에서 시작한 직관적인 시간 관리 프로젝트입니다.
 
-First, run the development server:
+## 1. 기획 의도
+기존의 캘린더나 리스트 형태의 스케줄러는 **'남은 시간'과 '현재 흐름'을 직관적으로 파악하기 어렵다**는 문제가 있었습니다.
+이를 해결하기 위해 24시간을 **원형(Pie Chart)** 형태로 시각화하여, 하루의 밀도와 빈 시간을 기하학적으로 즉시 인지할 수 있도록 설계했습니다.
 
+## 2. 핵심 기능 (MVP)
+- **원형 시각화 (Time Ring)**: 24시간을 각도로 변환하여 SVG 기반으로 렌더링.
+- **스케줄 관리**: 모달을 통한 일정 추가 및 컬러 태그 지정.
+- **충돌 방지 (Overlap Detection)**: 겹치는 시간대가 있으면 저장을 막고 경고(Toast) 노출.
+- **할 일 목록 (Todo List)**: 체크박스 기반의 간단한 할 일 관리.
+- **데이터 지속성**: `localStorage`를 활용하여 새로고침 후에도 데이터 유지 (날짜별 저장).
+
+## 3. UI/UX 디자인 포인트
+- **Pie Chart Metaphor**: 도넛 차트가 아닌 **파이 차트(꽉 찬 원형)** 형태를 채택하여, '시간의 양'을 면적으로 체감하게 했습니다.
+- **Clean Boundaries**: 인접한 일정이 뭉개지지 않도록 블록 간 명확한 Border(Stroke)를 주어 시인성을 높였습니다.
+- **Immediate Feedback**: 일정 충돌 시 즉각적인 Toast 알림으로 사용자의 실수를 방지합니다.
+
+## 4. 기술 스택
+| 구분 | 기술 | 선택 이유 |
+|------|------|-----------|
+| **Core** | **Next.js 14 (App Router)** | SEO 및 초기 로딩 속도 최적화, 최신 React 기능 활용 |
+| **Language** | **TypeScript** | 시간 계산 로직(number return 등)에서의 타입 안정성 보장 |
+| **Styling** | **Tailwind CSS** | 빠르고 일관된 유틸리티 퍼스트 스타일링 |
+| **Graphics** | **SVG (Native Code)** | 별도 라이브러리 없이 가볍고 정밀한 기하학적 렌더링 구현 |
+
+## 5. 프로젝트 구조
+기능과 역할을 명확히 분리하여 유지보수성을 높였습니다.
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+/app          # Page Router가 아닌 최신 App Router 구조
+/components   # UI 컴포넌트
+  /Modals     # 모달 관련 컴포넌트 격리
+  ScheduleBlock.tsx # SVG Path 연산 및 렌더링 담당
+  TimeRing.tsx      # 전체 원형 컨테이너
+/lib          # 비즈니스 로직 (Pure Functions)
+  time.ts     # 분 <-> 각도 변환 알고리즘
+  overlap.ts  # 스케줄 충돌 감지 로직
+  storage.ts  # LocalStorage Wrapper
+/types        # 전역 타입 정의 (Models)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 6. 기술적 의사결정 및 고민 (Challenges)
+### 1) SVG를 활용한 원형 섹터 그리기 (Math.cos/sin)
+라이브러리(Chart.js 등)를 쓸 수도 있었지만, **가벼운 번들**과 **완전한 커스터마이징**을 위해 직접 SVG Path를 계산했습니다.
+- **문제**: SVG 좌표계는 0도가 3시 방향이지만, 시계는 12시가 0도여야 함.
+- **해결**: `minutesToAngle` 변환 시 -90도 오프셋을 적용하고, 삼각함수 (`Math.cos`, `Math.sin`)를 사용해 Start/End 좌표를 계산, `A` (Arc) 커맨드로 패스를 생성했습니다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2) 일정 겹침(Overlap) 탐지 알고리즘
+- **문제**: 단순 비교(`start == start`)만으로는 부분적으로 겹치는 시간을 잡아낼 수 없음.
+- **해결**: 모든 시간 비교를 **'분(minute)' 단위 정수**로 치환한 후, `(StartA < EndB) && (EndA > StartB)` 논리를 적용하여 모든 케이스(포함, 걸침 등)를 O(n)으로 검증했습니다.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3) 클라이언트 데이터 지속성 전략
+- **고민**: 백엔드 없이 어떻게 데이터를 유지할까?
+- **해결**: `useEffect`를 활용해 마운트 시점에만 `localStorage`를 읽고, 상태 변경 시점에 쓰기를 수행하는 **Sync 전략**을 택했습니다. 날짜(`YYYY-MM-DD`)를 Key의 접미사로 사용하여 향후 날짜 이동 기능 확장에 대비했습니다.
 
-## Learn More
+## 7. 한계점 및 개선 계획
+- **한계**: 현재는 마우스 드래그를 통한 일정 추가가 불가능합니다 (Dropdown 방식).
+- **계획**: 
+    1. SVG 이벤트 핸들링을 통한 **Drag & Drop** 시간 수정 기능.
+    2. 구글 캘린더 연동 (iCal 파싱).
+    3. 다크 모드 지원.
 
-To learn more about Next.js, take a look at the following resources:
+## 8. 실행 방법
+```bash
+# 의존성 설치
+npm install
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# 개발 서버 실행
+npm run dev
+# http://localhost:3000 접속
+```
