@@ -6,9 +6,21 @@ interface Props {
     block: ScheduleBlockType;
     radius: number;
     center: { x: number; y: number };
+    onMouseEnter?: () => void;
+    onMouseLeave?: () => void;
+    onClick?: () => void;
+    isActive?: boolean;
 }
 
-const ScheduleBlock: React.FC<Props> = ({ block, radius, center }) => {
+const ScheduleBlock: React.FC<Props> = ({
+    block,
+    radius,
+    center,
+    onMouseEnter,
+    onMouseLeave,
+    onClick,
+    isActive
+}) => {
     const startMinutes = timeToMinutes(block.startTime);
     const endMinutes = timeToMinutes(block.endTime);
 
@@ -39,9 +51,13 @@ const ScheduleBlock: React.FC<Props> = ({ block, radius, center }) => {
         <path
             d={d}
             fill={block.color}
-            stroke="#000"
-            strokeWidth="2"
-            fillOpacity="0.9"
+            stroke={isActive ? "#000" : "#333"}
+            strokeWidth={isActive ? "3" : "1"}
+            fillOpacity={isActive ? "1" : "0.8"}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+            onClick={onClick}
+            style={{ cursor: 'pointer', transition: 'all 0.2s' }}
         />
     );
 };
